@@ -38,8 +38,16 @@ target/
 risc0/
 *.elf
 
-# Logs
+# Logs and process files
 *.log
+*.pid
+server_status.json
+
+# Storage files (generated during runtime)
+storage/
 
 # Local development
-.DS_Store 
+.DS_Store
+
+# Sample data (unless it's a template)
+credit-report.json 
