@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "anything-rag-mcp"
+version = "0.1.0"
+description = "Use MCP server to run RAG over your custom knowledge base"
+authors = ["proofofsid"]
+package-mode = false
+
+[tool.poetry.dependencies]
+python = ">=3.12,<4.0"
+llama-index = ">=0.12.25"
+llama-index-llms-ollama = ">=0.5.3"
+llama-index-embeddings-huggingface = ">=0.5.2"
+python-dotenv = ">=1.1.0,<2.0.0"
+nest-asyncio = ">=1.6.0,<2.0.0"
+fastapi = ">=0.115.12,<0.116.0"
+uvicorn = ">=0.34.0,<0.35.0"
+mcp = { version = ">=1.6.0,<2.0.0", extras = ["cli"] }
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
