@@ -1,10 +1,16 @@
 import os
 import nest_asyncio
+from dotenv import load_dotenv
+
+# Load .env for configuration
+load_dotenv(override=True)
+
 nest_asyncio.apply()
 
 from llama_index.llms.ollama import Ollama
 from llama_index.llms.openai import OpenAI
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.core.settings import Settings
 from llama_index.core.workflow import (
     Event, Context, Workflow,
@@ -23,18 +29,27 @@ class RetrieverEvent(Event):
 class RAGWorkflow(Workflow):
     def __init__(self, 
                  llm_provider="openai",
-                 model_name="mistral", 
+                 model_name="mistral",
+                 embed_provider="huggingface", 
                  embedding_model="sentence-transformers/all-MiniLM-L6-v2",
                  openai_api_key=None,
                  openai_base_url=None):
         super().__init__()
 
         print("🛠️ Initializing LLM and embedding model...")
+        if llm_provider == "openai":
+            print(f"🔤 Using OpenAI LLM with model: {model_name}")
+            # print api_key and base_url for debugging
+            print(f"🔑 OpenAI API Key: {openai_api_key if openai_api_key else '✗ Not set'}")
+            print(f"🌐 OpenAI Base URL: {openai_base_url or 'Default'}")
+        else:
+            print(f"🔤 Using Ollama LLM with model: {model_name}")
         
         # Initialize LLM based on provider choice
         if llm_provider == "openai":
             if not openai_api_key:
                 openai_api_key = os.environ.get("OPENAI_API_KEY")
+            
             
             self.llm = OpenAI(
                 model=model_name,
@@ -43,8 +58,21 @@ class RAGWorkflow(Workflow):
             )
         else:  # default to ollama
             self.llm = Ollama(model=model_name)
-            
-        self.embed_model = HuggingFaceEmbedding(model_name=embedding_model)
+        
+        # Initialize embedding model based on provider choice
+        if embed_provider == "ollama":
+            # For Ollama embeddings, use the specified model or default to nomic-embed
+            embed_model_name = embedding_model if embedding_model else "nomic-embed-text"
+            print(f"🔤 Using Ollama embeddings with model: {embed_model_name}")
+            try:
+                from llama_index.embeddings.ollama import OllamaEmbedding
+                self.embed_model = OllamaEmbedding(model_name=embed_model_name)
+            except ImportError:
+                print("⚠️ OllamaEmbedding not available. Falling back to HuggingFace.")
+                self.embed_model = HuggingFaceEmbedding(model_name=embedding_model)
+        else:  # default to HuggingFace
+            print(f"🔤 Using HuggingFace embeddings with model: {embedding_model}")
+            self.embed_model = HuggingFaceEmbedding(model_name=embedding_model)
 
         Settings.llm = self.llm
         Settings.embed_model = self.embed_model
@@ -120,23 +148,53 @@ class RAGWorkflow(Workflow):
 
 # 🔧 CLI Testing
 async def main():
-    # Choose which LLM provider to use
-    provider = "openai"  # Change to "openai" to use OpenAI
+    # Get configuration from .env file (already loaded at the top of the file)
+    # with fallbacks to default values if not set
+    provider = os.environ.get("LLM_PROVIDER", "ollama")
+    embed_provider = os.environ.get("EMBED_PROVIDER", "huggingface")
+    model_name = os.environ.get("MODEL_NAME", "mistral")
+    openai_model = os.environ.get("OPENAI_MODEL", "gpt-3.5-turbo")
+    openai_api_key = os.environ.get("OPENAI_API_KEY")
+    openai_base_url = os.environ.get("OPENAI_BASE_URL")
     
-    if provider == "openai":
+    # Embedding model depends on the provider
+    if embed_provider == "ollama":
+        embedding_model = os.environ.get("EMBEDDING_MODEL", "nomic-embed-text")
+    else:
+        embedding_model = os.environ.get("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+    
+    print(f"🔌 Using LLM provider: {provider}")
+    print(f"🧠 Using embedding provider: {embed_provider}")
+    
+    if provider.lower() == "openai":
         # Using OpenAI
         rag = RAGWorkflow(
             llm_provider="openai",
-            model_name="gpt-4o",  # or "gpt-4" or any other OpenAI model
-            openai_api_key="your-api-key-here",  # or set OPENAI_API_KEY env variable
-            openai_base_url=None  # Use default or provide custom base URL
+            model_name=openai_model,
+            embed_provider=embed_provider,
+            embedding_model=embedding_model,
+            openai_api_key=openai_api_key,
+            openai_base_url=openai_base_url
         )
     else:
-        # Using Ollama (default)
-        rag = RAGWorkflow(llm_provider="ollama", model_name="mistral")
+        # Using Ollama
+        rag = RAGWorkflow(
+            llm_provider="ollama", 
+            model_name=model_name,
+            embed_provider=embed_provider,
+            embedding_model=embedding_model
+        )
 
-    await rag.ingest_documents("data")
-    result = await rag.query("What is EIP-8514?")
+    # Get data directory and query from environment variables
+    data_dir = os.environ.get("DATA_DIR", "data")
+    query = os.environ.get("QUERY", "What is EIP-8514?")
+    
+    # Print configuration info
+    print(f"📂 Using data directory: {data_dir}")
+    print(f"❓ Default query: {query}")
+    
+    await rag.ingest_documents(data_dir)
+    result = await rag.query(query)
 
     print("⏳ Waiting for LLM response...\n")
     async for chunk in result.async_response_gen():

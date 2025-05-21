@@ -3,3 +3,6 @@ rag
 mcp
 nest_asyncio
 llama_index
+llama-index-llms-ollama
+llama-index-embeddings-huggingface
+llama-index-embeddings-ollama
