@@ -3,6 +3,7 @@ import nest_asyncio
 nest_asyncio.apply()
 
 from llama_index.llms.ollama import Ollama
+from llama_index.llms.openai import OpenAI
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.core.settings import Settings
 from llama_index.core.workflow import (
@@ -20,11 +21,29 @@ class RetrieverEvent(Event):
 
 
 class RAGWorkflow(Workflow):
-    def __init__(self, model_name="mistral", embedding_model="sentence-transformers/all-MiniLM-L6-v2"):
+    def __init__(self, 
+                 llm_provider="openai",
+                 model_name="mistral", 
+                 embedding_model="sentence-transformers/all-MiniLM-L6-v2",
+                 openai_api_key=None,
+                 openai_base_url=None):
         super().__init__()
 
         print("🛠️ Initializing LLM and embedding model...")
-        self.llm = Ollama(model=model_name)
+        
+        # Initialize LLM based on provider choice
+        if llm_provider == "openai":
+            if not openai_api_key:
+                openai_api_key = os.environ.get("OPENAI_API_KEY")
+            
+            self.llm = OpenAI(
+                model=model_name,
+                api_key=openai_api_key,
+                api_base=openai_base_url
+            )
+        else:  # default to ollama
+            self.llm = Ollama(model=model_name)
+            
         self.embed_model = HuggingFaceEmbedding(model_name=embedding_model)
 
         Settings.llm = self.llm
@@ -101,7 +120,20 @@ class RAGWorkflow(Workflow):
 
 # 🔧 CLI Testing
 async def main():
-    rag = RAGWorkflow()
+    # Choose which LLM provider to use
+    provider = "openai"  # Change to "openai" to use OpenAI
+    
+    if provider == "openai":
+        # Using OpenAI
+        rag = RAGWorkflow(
+            llm_provider="openai",
+            model_name="gpt-4o",  # or "gpt-4" or any other OpenAI model
+            openai_api_key="your-api-key-here",  # or set OPENAI_API_KEY env variable
+            openai_base_url=None  # Use default or provide custom base URL
+        )
+    else:
+        # Using Ollama (default)
+        rag = RAGWorkflow(llm_provider="ollama", model_name="mistral")
 
     await rag.ingest_documents("data")
     result = await rag.query("What is EIP-8514?")

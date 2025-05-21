@@ -1,0 +1,5 @@
+python-dotenv
+rag
+mcp
+nest_asyncio
+llama_index
